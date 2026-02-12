@@ -294,15 +294,17 @@ const App: React.FC = () => {
               </button>
            )}
 
-          <a 
-            href={GOOGLE_SHEET_URL} 
-            target="_blank" 
-            rel="noreferrer"
-            className="flex items-center p-2 text-sm text-blue-200 hover:text-white transition-colors"
-          >
-            <ExternalLink size={16} className="mr-2" />
-            เปิด Google Sheet
-          </a>
+          {userRole === 'editor' && (
+            <a 
+              href={GOOGLE_SHEET_URL} 
+              target="_blank" 
+              rel="noreferrer"
+              className="flex items-center p-2 text-sm text-blue-200 hover:text-white transition-colors"
+            >
+              <ExternalLink size={16} className="mr-2" />
+              เปิด Google Sheet
+            </a>
+          )}
         </div>
       </aside>
 
@@ -581,7 +583,7 @@ const App: React.FC = () => {
                 </div>
               )}
 
-              {!isLoading && filteredContacts.length === 0 && (
+              {!isLoading && filteredContacts.length === 0 && userRole === 'editor' && (
                  <div className="text-left">
                     <a 
                       href={GOOGLE_SHEET_URL} 
