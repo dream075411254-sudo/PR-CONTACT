@@ -669,7 +669,7 @@ const App: React.FC = () => {
              <UserManager />
           )}
 
-          {view === 'logs' && (
+          {view === 'logs' && canManageSystem && (
             <ActivityLogViewer />
           )}
 

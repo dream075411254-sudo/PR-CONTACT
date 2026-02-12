@@ -3,6 +3,7 @@ import { Contact, Category } from '../types';
 import { Button } from './Button';
 import { Input } from './Input';
 import { Save, X } from 'lucide-react';
+import * as DataService from '../services/dataService';
 
 interface ContactFormProps {
   initialData?: Contact | null;
@@ -13,7 +14,7 @@ interface ContactFormProps {
 
 export const ContactForm: React.FC<ContactFormProps> = ({ initialData, categories, onSave, onCancel }) => {
   const [formData, setFormData] = useState<Contact>({
-    id: crypto.randomUUID(),
+    id: DataService.generateUUID(),
     name: '',
     type: categories[0]?.name || '',
     position: '',

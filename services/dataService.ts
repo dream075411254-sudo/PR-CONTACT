@@ -5,6 +5,15 @@ const CATEGORIES_KEY = 'pr_categories_data';
 const USERS_KEY = 'pr_users_data';
 const LOGS_KEY = 'pr_activity_logs';
 
+// --- Utils ---
+export const generateUUID = () => {
+  // Fallback for environments where crypto is not available
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+    return crypto.randomUUID();
+  }
+  return Date.now().toString(36) + Math.random().toString(36).substring(2);
+};
+
 // --- Activity Log Logic ---
 
 export const logActivity = (actor: User | null, action: string, details: string) => {
@@ -15,7 +24,7 @@ export const logActivity = (actor: User | null, action: string, details: string)
     const logs: ActivityLog[] = logsData ? JSON.parse(logsData) : [];
 
     const newLog: ActivityLog = {
-      id: crypto.randomUUID(),
+      id: generateUUID(),
       userId: actor.id,
       userName: actor.name,
       userRole: actor.role,
@@ -39,6 +48,10 @@ export const getActivityLogs = (): ActivityLog[] => {
   } catch (error) {
     return [];
   }
+};
+
+export const clearActivityLogs = (): void => {
+  localStorage.removeItem(LOGS_KEY);
 };
 
 // --- Contact Logic ---
@@ -176,7 +189,7 @@ export const getCategories = (): Category[] => {
   try {
     const data = localStorage.getItem(CATEGORIES_KEY);
     if (!data) {
-      const defaults = DEFAULT_CATEGORIES.map(c => ({ id: crypto.randomUUID(), name: c }));
+      const defaults = DEFAULT_CATEGORIES.map(c => ({ id: generateUUID(), name: c }));
       localStorage.setItem(CATEGORIES_KEY, JSON.stringify(defaults));
       return defaults;
     }
@@ -193,7 +206,7 @@ export const syncCategoriesFromData = (contacts: Contact[]): void => {
 
   contacts.forEach(c => {
     if (c.type && !existingNames.has(c.type)) {
-      currentCats.push({ id: crypto.randomUUID(), name: c.type });
+      currentCats.push({ id: generateUUID(), name: c.type });
       existingNames.add(c.type);
       hasNew = true;
     }
@@ -206,7 +219,7 @@ export const syncCategoriesFromData = (contacts: Contact[]): void => {
 
 export const addCategory = (name: string, actor: User): Category => {
   const categories = getCategories();
-  const newCat = { id: crypto.randomUUID(), name };
+  const newCat = { id: generateUUID(), name };
   categories.push(newCat);
   localStorage.setItem(CATEGORIES_KEY, JSON.stringify(categories));
   

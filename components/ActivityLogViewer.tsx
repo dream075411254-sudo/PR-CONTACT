@@ -1,16 +1,27 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { ActivityLog } from '../types';
 import * as DataService from '../services/dataService';
-import { Search, History, Clock, User, FileText, Shield } from 'lucide-react';
+import { Search, History, Clock, User, FileText, Shield, Trash2, RefreshCw } from 'lucide-react';
+import { Button } from './Button';
 
 export const ActivityLogViewer: React.FC = () => {
   const [logs, setLogs] = useState<ActivityLog[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
 
-  useEffect(() => {
-    // Load logs on mount
+  const loadLogs = () => {
     setLogs(DataService.getActivityLogs());
+  };
+
+  useEffect(() => {
+    loadLogs();
   }, []);
+
+  const handleClearLogs = () => {
+    if (confirm('คุณต้องการลบประวัติการใช้งานทั้งหมดหรือไม่? (ข้อมูลจะหายไปจากเครื่องนี้ถาวร)')) {
+        DataService.clearActivityLogs();
+        loadLogs();
+    }
+  };
 
   const filteredLogs = useMemo(() => {
     return logs.filter(log => 
@@ -21,13 +32,17 @@ export const ActivityLogViewer: React.FC = () => {
   }, [logs, searchTerm]);
 
   const formatDate = (timestamp: number) => {
-    return new Date(timestamp).toLocaleString('th-TH', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
+    try {
+        return new Date(timestamp).toLocaleString('th-TH', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+        });
+    } catch (e) {
+        return '-';
+    }
   };
 
   const getActionColor = (action: string) => {
@@ -47,19 +62,27 @@ export const ActivityLogViewer: React.FC = () => {
           </div>
           <div>
             <h2 className="text-xl font-bold text-gray-800">ประวัติการใช้งานระบบ</h2>
-            <p className="text-sm text-gray-500">บันทึกกิจกรรมและการกระทำต่างๆ ของผู้ใช้งาน</p>
+            <p className="text-sm text-gray-500">บันทึกกิจกรรมใน Browser นี้ (LocalStorage)</p>
           </div>
         </div>
         
-        <div className="relative w-full md:w-80">
-           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={18} />
-           <input
-              type="text"
-              placeholder="ค้นหา ผู้ใช้, กิจกรรม..."
-              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent text-sm"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-           />
+        <div className="flex items-center gap-2 w-full md:w-auto">
+            <div className="relative flex-1 md:w-64">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={18} />
+                <input
+                    type="text"
+                    placeholder="ค้นหา..."
+                    className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent text-sm"
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                />
+            </div>
+            <Button variant="secondary" onClick={loadLogs} title="รีเฟรชข้อมูล">
+                <RefreshCw size={18} />
+            </Button>
+            <Button variant="danger" onClick={handleClearLogs} title="ล้างประวัติ">
+                <Trash2 size={18} />
+            </Button>
         </div>
       </div>
 
