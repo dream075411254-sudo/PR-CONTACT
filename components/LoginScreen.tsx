@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Button } from './Button';
 import { Input } from './Input';
-import { Users, Shield, UserCog, Lock } from 'lucide-react';
+import { Users, Shield, UserCog, Lock, Info } from 'lucide-react';
 import { UserRole } from '../types';
 import * as DataService from '../services/dataService';
 
@@ -77,7 +77,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
           <form onSubmit={handleLogin} className="space-y-5">
             <Input 
               label="ชื่อผู้ใช้งาน (Username)"
-              placeholder="admin, editor หรือ viewer"
+              placeholder="กรอกชื่อผู้ใช้งาน..."
               value={username}
               onChange={(e) => setUsername(e.target.value)}
               disabled={isLoading}
@@ -101,6 +101,14 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
               เข้าสู่ระบบ
             </Button>
           </form>
+
+          <div className="mt-8 p-4 bg-gray-50 rounded-lg border border-gray-100 flex items-start gap-3">
+             <Info className="text-blue-500 flex-shrink-0 mt-0.5" size={18} />
+             <div className="text-xs text-gray-500">
+                <p className="font-semibold text-gray-700 mb-1">ไม่มีบัญชีผู้ใช้งาน?</p>
+                <p>กรุณาติดต่อผู้ดูแลระบบ (Admin) เพื่อทำการสร้างบัญชีและรับรหัสผ่านสำหรับเข้าใช้งาน</p>
+             </div>
+          </div>
           
           <p className="mt-6 text-xs text-center text-gray-400">
              © 2024 PR Contact Manager System
