@@ -21,10 +21,11 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
     setIsLoading(true);
 
     const cleanUsername = username.trim();
+    const cleanPassword = password.trim();
     
     // Use DataService to authenticate
     setTimeout(() => {
-      const user = DataService.authenticateUser(cleanUsername, password);
+      const user = DataService.authenticateUser(cleanUsername, cleanPassword);
       
       if (user) {
         onLogin(user);

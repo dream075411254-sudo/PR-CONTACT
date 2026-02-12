@@ -32,7 +32,7 @@ export const UserManager: React.FC = () => {
 
   const handleAddNew = () => {
     setFormData({
-      id: crypto.randomUUID(),
+      id: DataService.generateUUID(),
       username: '',
       password: '',
       name: '',

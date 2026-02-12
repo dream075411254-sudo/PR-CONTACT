@@ -291,12 +291,13 @@ export const getUsers = (): User[] => {
 
 export const authenticateUser = (username: string, password: string): User | null => {
   const users = getUsers();
-  // Case-insensitive, trimmed username match. Password is still exact.
+  // Case-insensitive, trimmed username match. Password is also trimmed for consistency.
   const cleanUsername = username.trim().toLowerCase();
+  const cleanPassword = password.trim();
   
   const user = users.find(u => 
     u.username.toLowerCase() === cleanUsername && 
-    u.password === password
+    u.password === cleanPassword
   );
   return user || null;
 };
