@@ -20,9 +20,12 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
     setError('');
     setIsLoading(true);
 
+    const cleanUsername = username.trim();
+    // const cleanPassword = password.trim(); // Optional: Usually better not to trim password in case space is intentional, but for this internal app it might prevent errors. Let's rely on DataService which doesn't trim password but matches exact.
+
     // Use DataService to authenticate
     setTimeout(() => {
-      const user = DataService.authenticateUser(username, password);
+      const user = DataService.authenticateUser(cleanUsername, password);
       
       if (user) {
         onLogin(user.role);

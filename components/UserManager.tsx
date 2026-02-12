@@ -53,13 +53,26 @@ export const UserManager: React.FC = () => {
 
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.username || !formData.password || !formData.name) {
+    if (!formData.username.trim() || !formData.password.trim() || !formData.name.trim()) {
         alert("กรุณากรอกข้อมูลให้ครบถ้วน");
         return;
     }
-    DataService.saveUser(formData);
-    setIsEditing(false);
-    loadUsers();
+    
+    try {
+        // Clean data before saving
+        const userToSave = {
+            ...formData,
+            username: formData.username.trim(),
+            password: formData.password.trim(),
+            name: formData.name.trim()
+        };
+
+        DataService.saveUser(userToSave);
+        setIsEditing(false);
+        loadUsers();
+    } catch (error: any) {
+        alert(error.message);
+    }
   };
 
   const getRoleIcon = (role: UserRole) => {
@@ -128,6 +141,7 @@ export const UserManager: React.FC = () => {
                     value={formData.username}
                     onChange={e => setFormData({...formData, username: e.target.value})}
                     required
+                    placeholder="ภาษาอังกฤษ หรือ ตัวเลข"
                 />
                 <Input 
                     label="รหัสผ่าน (Password)" 
@@ -137,6 +151,10 @@ export const UserManager: React.FC = () => {
                     required
                     placeholder="ตั้งรหัสผ่าน..."
                 />
+            </div>
+            <div className="bg-yellow-50 p-3 rounded-md text-xs text-yellow-800 mb-4 flex gap-2">
+                 <span>💡</span>
+                 <span>หมายเหตุ: ระบบจะทำการตัดช่องว่างหน้า-หลังชื่อผู้ใช้และรหัสผ่านออกให้อัตโนมัติ เพื่อป้องกันความผิดพลาด</span>
             </div>
             <div className="flex justify-end gap-2">
                 <Button type="button" variant="secondary" onClick={() => setIsEditing(false)}>ยกเลิก</Button>

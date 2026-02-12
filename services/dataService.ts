@@ -232,12 +232,29 @@ export const getUsers = (): User[] => {
 
 export const authenticateUser = (username: string, password: string): User | null => {
   const users = getUsers();
-  const user = users.find(u => u.username === username && u.password === password);
+  // Case-insensitive, trimmed username match. Password is still exact.
+  const cleanUsername = username.trim().toLowerCase();
+  
+  const user = users.find(u => 
+    u.username.toLowerCase() === cleanUsername && 
+    u.password === password
+  );
   return user || null;
 };
 
 export const saveUser = (user: User): void => {
   const users = getUsers();
+  
+  // Check for duplicate username (excluding the user being edited)
+  const duplicate = users.find(u => 
+    u.username.toLowerCase() === user.username.trim().toLowerCase() && 
+    u.id !== user.id
+  );
+
+  if (duplicate) {
+    throw new Error(`ชื่อผู้ใช้ "${user.username}" มีอยู่ในระบบแล้ว กรุณาใช้ชื่ออื่น`);
+  }
+
   const index = users.findIndex(u => u.id === user.id);
   
   if (index >= 0) {
