@@ -3,11 +3,12 @@ import { User, UserRole } from '../types';
 import * as DataService from '../services/dataService';
 import { Button } from './Button';
 import { Input } from './Input';
-import { Users, UserPlus, Shield, ShieldCheck, Lock, Trash2, Edit, Save, X } from 'lucide-react';
+import { Users, UserPlus, Shield, ShieldCheck, Lock, Trash2, Edit, Save, X, RefreshCw } from 'lucide-react';
 
 export const UserManager: React.FC = () => {
   const [users, setUsers] = useState<User[]>([]);
   const [isEditing, setIsEditing] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [formData, setFormData] = useState<User>({
     id: '',
@@ -19,15 +20,22 @@ export const UserManager: React.FC = () => {
 
   useEffect(() => {
     loadUsers();
-    // Get current user for logging purposes
     const savedUserJson = localStorage.getItem('pr_app_user');
     if (savedUserJson) {
         setCurrentUser(JSON.parse(savedUserJson));
     }
   }, []);
 
-  const loadUsers = () => {
-    setUsers(DataService.getUsers());
+  const loadUsers = async () => {
+    setIsLoading(true);
+    try {
+      const data = await DataService.getUsers();
+      setUsers(data);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleAddNew = () => {
@@ -46,19 +54,22 @@ export const UserManager: React.FC = () => {
     setIsEditing(true);
   };
 
-  const handleDelete = (id: string) => {
+  const handleDelete = async (id: string) => {
     if (!currentUser) return;
     if (confirm('ยืนยันการลบผู้ใช้งานนี้?')) {
       try {
-        DataService.deleteUser(id, currentUser);
-        loadUsers();
+        setIsLoading(true);
+        await DataService.deleteUser(id, currentUser);
+        await loadUsers();
       } catch (e: any) {
         alert(e.message);
+      } finally {
+        setIsLoading(false);
       }
     }
   };
 
-  const handleSave = (e: React.FormEvent) => {
+  const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!currentUser) return;
 
@@ -67,8 +78,8 @@ export const UserManager: React.FC = () => {
         return;
     }
     
+    setIsLoading(true);
     try {
-        // Clean data before saving
         const userToSave = {
             ...formData,
             username: formData.username.trim(),
@@ -76,11 +87,13 @@ export const UserManager: React.FC = () => {
             name: formData.name.trim()
         };
 
-        DataService.saveUser(userToSave, currentUser);
+        await DataService.saveUser(userToSave, currentUser);
         setIsEditing(false);
-        loadUsers();
+        await loadUsers();
     } catch (error: any) {
         alert(error.message);
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -109,15 +122,20 @@ export const UserManager: React.FC = () => {
           </div>
           <div>
             <h2 className="text-xl font-bold text-gray-800">จัดการผู้ใช้งาน</h2>
-            <p className="text-sm text-gray-500">เพิ่ม ลบ หรือแก้ไขสิทธิ์การใช้งานระบบ</p>
+            <p className="text-sm text-gray-500">ข้อมูลผู้ใช้ถูกซิงค์กับระบบ Cloud เพื่อให้ล็อกอินได้ทุกเครื่อง</p>
           </div>
         </div>
-        {!isEditing && (
-            <Button onClick={handleAddNew}>
-                <UserPlus size={18} className="mr-2" />
-                เพิ่มผู้ใช้งาน
-            </Button>
-        )}
+        <div className="flex gap-2">
+          <Button variant="secondary" onClick={loadUsers} disabled={isLoading}>
+            <RefreshCw size={18} className={isLoading ? "animate-spin" : ""} />
+          </Button>
+          {!isEditing && (
+              <Button onClick={handleAddNew}>
+                  <UserPlus size={18} className="mr-2" />
+                  เพิ่มผู้ใช้งาน
+              </Button>
+          )}
+        </div>
       </div>
 
       {isEditing && (
@@ -161,15 +179,11 @@ export const UserManager: React.FC = () => {
                     placeholder="ตั้งรหัสผ่าน..."
                 />
             </div>
-            <div className="bg-yellow-50 p-3 rounded-md text-xs text-yellow-800 mb-4 flex gap-2">
-                 <span>💡</span>
-                 <span>หมายเหตุ: ระบบจะทำการตัดช่องว่างหน้า-หลังชื่อผู้ใช้และรหัสผ่านออกให้อัตโนมัติ เพื่อป้องกันความผิดพลาด</span>
-            </div>
             <div className="flex justify-end gap-2">
                 <Button type="button" variant="secondary" onClick={() => setIsEditing(false)}>ยกเลิก</Button>
-                <Button type="submit">
+                <Button type="submit" isLoading={isLoading}>
                     <Save size={18} className="mr-2" />
-                    บันทึก
+                    บันทึกไปยัง Cloud
                 </Button>
             </div>
         </form>
@@ -206,17 +220,25 @@ export const UserManager: React.FC = () => {
                   </span>
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                  <button onClick={() => handleEdit(user)} className="text-indigo-600 hover:text-indigo-900 mr-4">
-                    <Edit size={18} />
-                  </button>
-                  <button onClick={() => handleDelete(user.id)} className="text-red-600 hover:text-red-900">
-                    <Trash2 size={18} />
-                  </button>
+                  {user.id !== '1' && (
+                    <>
+                      <button onClick={() => handleEdit(user)} className="text-indigo-600 hover:text-indigo-900 mr-4">
+                        <Edit size={18} />
+                      </button>
+                      <button onClick={() => handleDelete(user.id)} className="text-red-600 hover:text-red-900">
+                        <Trash2 size={18} />
+                      </button>
+                    </>
+                  )}
+                  {user.id === '1' && <span className="text-gray-400 text-xs italic">System Admin</span>}
                 </td>
               </tr>
             ))}
           </tbody>
         </table>
+        {isLoading && users.length === 0 && (
+          <div className="p-12 text-center text-gray-500">กำลังโหลดข้อมูลผู้ใช้...</div>
+        )}
       </div>
     </div>
   );

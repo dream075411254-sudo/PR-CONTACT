@@ -15,7 +15,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     setIsLoading(true);
@@ -23,17 +23,19 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
     const cleanUsername = username.trim();
     const cleanPassword = password.trim();
     
-    // Use DataService to authenticate
-    setTimeout(() => {
-      const user = DataService.authenticateUser(cleanUsername, cleanPassword);
+    try {
+      const user = await DataService.authenticateUser(cleanUsername, cleanPassword);
       
       if (user) {
         onLogin(user);
       } else {
         setError('ชื่อผู้ใช้งานหรือรหัสผ่านไม่ถูกต้อง');
-        setIsLoading(false);
       }
-    }, 600); // Simulate network delay slightly for better UX
+    } catch (err) {
+      setError('เกิดข้อผิดพลาดในการเชื่อมต่อเซิร์ฟเวอร์');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
