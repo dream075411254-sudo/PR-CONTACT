@@ -1,0 +1,503 @@
+import React, { useState, useEffect, useMemo } from 'react';
+import { Contact, Category, ViewState } from './types';
+import * as DataService from './services/dataService';
+import { ContactForm } from './components/ContactForm';
+import { CategoryManager } from './components/CategoryManager';
+import { Stats } from './components/Stats';
+import { ContactDetail } from './components/ContactDetail';
+import { Button } from './components/Button';
+import { GOOGLE_SHEET_URL } from './constants';
+import { 
+  LayoutDashboard, 
+  Plus, 
+  Users, 
+  Settings, 
+  Search, 
+  Download, 
+  ExternalLink,
+  MapPin,
+  Phone,
+  Mail,
+  Edit,
+  Trash2,
+  PieChart,
+  RefreshCw,
+  LayoutList,
+  LayoutGrid,
+  Eye
+} from 'lucide-react';
+
+const App: React.FC = () => {
+  const [view, setView] = useState<ViewState>('dashboard');
+  const [viewMode, setViewMode] = useState<'grid' | 'table'>('table'); // Default to table
+  const [contacts, setContacts] = useState<Contact[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [editingContact, setEditingContact] = useState<Contact | null>(null);
+  const [viewingContact, setViewingContact] = useState<Contact | null>(null);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [selectedCategoryFilter, setSelectedCategoryFilter] = useState<string>('all');
+  
+  // Loading states
+  const [isLoading, setIsLoading] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+
+  const fetchContacts = async () => {
+    setIsLoading(true);
+    try {
+      const data = await DataService.getContacts();
+      setContacts(data);
+      
+      // Update categories based on actual data
+      DataService.syncCategoriesFromData(data);
+      setCategories(DataService.getCategories());
+    } catch (error) {
+      console.error("Failed to fetch contacts", error);
+      alert("ไม่สามารถดึงข้อมูลได้ กรุณาลองใหม่อีกครั้ง");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Load initial data
+  useEffect(() => {
+    fetchContacts();
+    setCategories(DataService.getCategories());
+  }, []);
+
+  // Filter contacts
+  const filteredContacts = useMemo(() => {
+    return contacts.filter(contact => {
+      const matchesSearch = 
+        contact.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        contact.organization.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        contact.position.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        contact.address.province.toLowerCase().includes(searchTerm.toLowerCase());
+      
+      const matchesCategory = selectedCategoryFilter === 'all' || contact.type === selectedCategoryFilter;
+
+      return matchesSearch && matchesCategory;
+    });
+  }, [contacts, searchTerm, selectedCategoryFilter]);
+
+  const handleSaveContact = async (contact: Contact) => {
+    setIsSaving(true);
+    try {
+      await DataService.saveContact(contact);
+      
+      // Give google sheet a moment to update
+      setTimeout(async () => {
+          await fetchContacts();
+      }, 1500);
+      
+      setView('dashboard');
+      setEditingContact(null);
+    } catch (error) {
+      alert("เกิดข้อผิดพลาดในการบันทึกข้อมูล");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleDeleteContact = async (id: string) => {
+    if (confirm('ยืนยันการลบข้อมูลนี้? (การลบจะส่งผลต่อฐานข้อมูลโดยตรง)')) {
+      setIsLoading(true);
+      try {
+        await DataService.deleteContact(id);
+        
+        // Give google sheet a moment to update
+        setTimeout(async () => {
+             await fetchContacts();
+        }, 1500);
+
+      } catch (error) {
+        alert("เกิดข้อผิดพลาดในการลบข้อมูล");
+        setIsLoading(false);
+      }
+    }
+  };
+
+  const handleEditContact = (contact: Contact) => {
+     setEditingContact(contact);
+     setView('add');
+  };
+
+  const handleViewContact = (contact: Contact) => {
+    setViewingContact(contact);
+    setView('details');
+  };
+
+  const handleAddCategory = (name: string) => {
+    DataService.addCategory(name);
+    setCategories(DataService.getCategories());
+  };
+
+  const handleDeleteCategory = (id: string) => {
+    if (confirm('ยืนยันการลบหมวดหมู่?')) {
+      DataService.deleteCategory(id);
+      setCategories(DataService.getCategories());
+    }
+  };
+
+  const handleExportCSV = () => {
+    const csvContent = DataService.exportToCSV(contacts);
+    const blob = new Blob([new Uint8Array([0xEF, 0xBB, 0xBF]), csvContent], { type: 'text/csv;charset=utf-8;' }); 
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", `pr_contacts_${new Date().toISOString().slice(0,10)}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  return (
+    <div className="min-h-screen flex flex-col md:flex-row">
+      {/* Sidebar Navigation */}
+      <aside className="bg-primary text-white w-full md:w-64 flex-shrink-0">
+        <div className="p-6 border-b border-blue-800">
+          <h1 className="text-2xl font-bold tracking-tight">PR Manager</h1>
+          <p className="text-blue-200 text-sm mt-1">ระบบฐานข้อมูลสื่อมวลชน</p>
+        </div>
+        <nav className="p-4 space-y-2">
+          <button 
+            onClick={() => { setView('dashboard'); setViewingContact(null); }}
+            className={`w-full flex items-center p-3 rounded-lg transition-colors ${view === 'dashboard' || view === 'details' ? 'bg-blue-800' : 'hover:bg-blue-700'}`}
+          >
+            <LayoutDashboard size={20} className="mr-3" />
+            <span>รายชื่อผู้ติดต่อ</span>
+          </button>
+          <button 
+            onClick={() => { setEditingContact(null); setView('add'); }}
+            className={`w-full flex items-center p-3 rounded-lg transition-colors ${view === 'add' ? 'bg-blue-800' : 'hover:bg-blue-700'}`}
+          >
+            <Plus size={20} className="mr-3" />
+            <span>เพิ่มข้อมูล</span>
+          </button>
+          <button 
+            onClick={() => setView('categories')}
+            className={`w-full flex items-center p-3 rounded-lg transition-colors ${view === 'categories' ? 'bg-blue-800' : 'hover:bg-blue-700'}`}
+          >
+            <Settings size={20} className="mr-3" />
+            <span>จัดการหมวดหมู่</span>
+          </button>
+          <button 
+            onClick={() => setView('analytics')}
+            className={`w-full flex items-center p-3 rounded-lg transition-colors ${view === 'analytics' ? 'bg-blue-800' : 'hover:bg-blue-700'}`}
+          >
+            <PieChart size={20} className="mr-3" />
+            <span>ภาพรวมข้อมูล</span>
+          </button>
+        </nav>
+        
+        <div className="p-4 mt-auto border-t border-blue-800">
+          <a 
+            href={GOOGLE_SHEET_URL} 
+            target="_blank" 
+            rel="noreferrer"
+            className="flex items-center text-sm text-blue-200 hover:text-white transition-colors"
+          >
+            <ExternalLink size={16} className="mr-2" />
+            เปิด Google Sheet ต้นฉบับ
+          </a>
+        </div>
+      </aside>
+
+      {/* Main Content */}
+      <main className="flex-1 overflow-auto bg-gray-50 p-4 md:p-8">
+        
+        {/* Loading Overlay */}
+        {(isLoading || isSaving) && (
+          <div className="fixed inset-0 bg-black/20 backdrop-blur-sm z-50 flex items-center justify-center">
+            <div className="bg-white p-6 rounded-xl shadow-xl flex items-center space-x-4">
+              <div className="w-6 h-6 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
+              <span className="text-gray-700 font-medium">
+                {isSaving ? 'กำลังบันทึกข้อมูล...' : 'กำลังโหลดข้อมูล...'}
+              </span>
+            </div>
+          </div>
+        )}
+        
+        {view === 'dashboard' && (
+          <div className="max-w-7xl mx-auto space-y-6">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <h2 className="text-2xl font-bold text-gray-800">รายชื่อผู้ติดต่อทั้งหมด</h2>
+              <div className="flex gap-2">
+                <Button variant="secondary" onClick={fetchContacts} title="อัปเดตข้อมูล">
+                  <RefreshCw size={18} className={isLoading ? "animate-spin" : ""} />
+                </Button>
+                <Button variant="secondary" onClick={handleExportCSV}>
+                  <Download size={18} className="mr-2" />
+                  Export CSV
+                </Button>
+                <Button onClick={() => { setEditingContact(null); setView('add'); }}>
+                  <Plus size={18} className="mr-2" />
+                  เพิ่มข้อมูลใหม่
+                </Button>
+              </div>
+            </div>
+
+            {/* Filters and View Toggle */}
+            <div className="flex flex-col md:flex-row gap-4 justify-between items-end md:items-center">
+              <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex flex-col md:flex-row gap-4 flex-1 w-full">
+                <div className="relative flex-1">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
+                  <input
+                    type="text"
+                    placeholder="ค้นหา ชื่อ, หน่วยงาน, หรือจังหวัด..."
+                    className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                  />
+                </div>
+                <select 
+                  className="p-2 border border-gray-300 rounded-lg bg-white min-w-[200px]"
+                  value={selectedCategoryFilter}
+                  onChange={(e) => setSelectedCategoryFilter(e.target.value)}
+                >
+                  <option value="all">ทุกหมวดหมู่</option>
+                  {categories.map(c => (
+                    <option key={c.id} value={c.name}>{c.name}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="flex bg-white p-1 rounded-lg border border-gray-200 shadow-sm shrink-0 h-[58px] items-center">
+                 <button 
+                    onClick={() => setViewMode('table')}
+                    className={`p-2.5 rounded-md transition-colors ${viewMode === 'table' ? 'bg-blue-50 text-primary' : 'text-gray-400 hover:text-gray-600'}`}
+                    title="มุมมองตาราง"
+                 >
+                    <LayoutList size={22} />
+                 </button>
+                 <button 
+                    onClick={() => setViewMode('grid')}
+                    className={`p-2.5 rounded-md transition-colors ${viewMode === 'grid' ? 'bg-blue-50 text-primary' : 'text-gray-400 hover:text-gray-600'}`}
+                    title="มุมมองการ์ด"
+                 >
+                    <LayoutGrid size={22} />
+                 </button>
+              </div>
+            </div>
+
+            {/* Content Display */}
+            {viewMode === 'grid' ? (
+              // GRID VIEW
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {filteredContacts.map((contact, idx) => (
+                  <div key={idx} className="bg-white rounded-xl shadow-sm hover:shadow-md transition-shadow border border-gray-100 overflow-hidden flex flex-col">
+                    <div className="p-5 flex-1">
+                      <div className="flex justify-between items-start mb-2">
+                        <span className="inline-block px-2 py-1 text-xs font-semibold text-blue-700 bg-blue-50 rounded-full">
+                          {contact.type}
+                        </span>
+                        <div className="flex space-x-1">
+                          <button onClick={() => handleViewContact(contact)} className="p-1 text-gray-400 hover:text-blue-600 transition-colors" title="ดูรายละเอียด">
+                            <Eye size={16} />
+                          </button>
+                          <button onClick={() => handleEditContact(contact)} className="p-1 text-gray-400 hover:text-blue-600 transition-colors" title="แก้ไข">
+                            <Edit size={16} />
+                          </button>
+                          <button onClick={() => handleDeleteContact(contact.id)} className="p-1 text-gray-400 hover:text-red-600 transition-colors" title="ลบ">
+                            <Trash2 size={16} />
+                          </button>
+                        </div>
+                      </div>
+                      
+                      <h3 className="text-lg font-bold text-gray-900 mb-1">{contact.name}</h3>
+                      <p className="text-gray-600 text-sm mb-4">{contact.position} @ {contact.organization}</p>
+                      
+                      <div className="space-y-2 text-sm text-gray-500">
+                        <div className="flex items-center">
+                          <Phone size={14} className="mr-2 text-gray-400" />
+                          {contact.phone || '-'}
+                        </div>
+                        <div className="flex items-center">
+                          <Mail size={14} className="mr-2 text-gray-400" />
+                          <span className="truncate">{contact.email || '-'}</span>
+                        </div>
+                        <div className="flex items-start">
+                          <MapPin size={14} className="mr-2 mt-1 text-gray-400 flex-shrink-0" />
+                          <span className="line-clamp-2">
+                            {[contact.address.subdistrict, contact.address.district, contact.address.province].filter(Boolean).join(', ')}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <div className="flex border-t border-gray-100 divide-x divide-gray-100">
+                        <button 
+                            onClick={() => handleViewContact(contact)}
+                            className="flex-1 py-3 text-center text-sm text-gray-600 font-medium hover:bg-gray-50 transition-colors"
+                        >
+                            ดูข้อมูล
+                        </button>
+                        {contact.link && (
+                        <a 
+                            href={contact.link.startsWith('http') ? contact.link : `https://${contact.link}`} 
+                            target="_blank" 
+                            rel="noreferrer"
+                            className="flex-1 py-3 text-center text-sm text-blue-600 font-medium hover:bg-blue-50 transition-colors"
+                        >
+                            เยี่ยมชมเว็บ
+                        </a>
+                        )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              // TABLE VIEW
+              <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden overflow-x-auto">
+                <table className="min-w-full divide-y divide-gray-200">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider min-w-[200px]">
+                        ชื่อ-นามสกุล
+                      </th>
+                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        ประเภท
+                      </th>
+                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider min-w-[200px]">
+                        ตำแหน่ง/หน่วยงาน
+                      </th>
+                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider min-w-[200px]">
+                        ติดต่อ
+                      </th>
+                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        จังหวัด
+                      </th>
+                      <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        จัดการ
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {filteredContacts.map((contact) => (
+                      <tr key={contact.id} className="hover:bg-gray-50 transition-colors">
+                        <td className="px-6 py-4">
+                          <div className="text-sm font-bold text-gray-900">{contact.name}</div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <span className="px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-blue-100 text-blue-800">
+                            {contact.type}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4">
+                          <div className="text-sm text-gray-900">{contact.position}</div>
+                          <div className="text-sm text-gray-500">{contact.organization}</div>
+                        </td>
+                        <td className="px-6 py-4">
+                          <div className="text-sm text-gray-900 flex items-center gap-1.5 mb-1">
+                            <Phone size={14} className="text-gray-400" />
+                            {contact.phone || '-'}
+                          </div>
+                          <div className="text-sm text-gray-500 flex items-center gap-1.5">
+                            <Mail size={14} className="text-gray-400" />
+                            {contact.email || '-'}
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                          {contact.address.province}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                          <div className="flex justify-end gap-3">
+                              {contact.link && (
+                                <a 
+                                  href={contact.link.startsWith('http') ? contact.link : `https://${contact.link}`} 
+                                  target="_blank" 
+                                  rel="noreferrer"
+                                  className="text-gray-400 hover:text-blue-600 transition-colors"
+                                  title="เยี่ยมชมเว็บไซต์"
+                                >
+                                  <ExternalLink size={18} />
+                                </a>
+                              )}
+                              <button 
+                                onClick={() => handleViewContact(contact)} 
+                                className="text-gray-400 hover:text-blue-600 transition-colors"
+                                title="ดูรายละเอียด"
+                              >
+                                <Eye size={18}/>
+                              </button>
+                              <button 
+                                onClick={() => handleEditContact(contact)} 
+                                className="text-gray-400 hover:text-blue-600 transition-colors"
+                                title="แก้ไข"
+                              >
+                                <Edit size={18}/>
+                              </button>
+                              <button 
+                                onClick={() => handleDeleteContact(contact.id)} 
+                                className="text-gray-400 hover:text-red-600 transition-colors"
+                                title="ลบ"
+                              >
+                                <Trash2 size={18}/>
+                              </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+            
+            {!isLoading && filteredContacts.length === 0 && (
+              <div className="col-span-full text-center py-12 text-gray-500 bg-white rounded-xl border border-dashed border-gray-300">
+                <Users size={48} className="mx-auto mb-3 opacity-20" />
+                <p>ไม่พบข้อมูลผู้ติดต่อ</p>
+              </div>
+            )}
+
+            {!isLoading && filteredContacts.length === 0 && (
+               <div className="text-left">
+                  <a 
+                    href={GOOGLE_SHEET_URL} 
+                    target="_blank" 
+                    rel="noreferrer"
+                    className="text-primary hover:underline text-base"
+                  >
+                    ข้อมูลจากGoogle Sheet ยังไม่แสดง
+                  </a>
+               </div>
+            )}
+
+          </div>
+        )}
+
+        {view === 'add' && (
+          <ContactForm 
+            categories={categories} 
+            onSave={handleSaveContact} 
+            onCancel={() => { setView('dashboard'); setEditingContact(null); }}
+            initialData={editingContact}
+          />
+        )}
+
+        {view === 'categories' && (
+          <CategoryManager 
+            categories={categories} 
+            onAdd={handleAddCategory} 
+            onDelete={handleDeleteCategory} 
+          />
+        )}
+
+        {view === 'analytics' && (
+          <Stats contacts={contacts} />
+        )}
+
+        {view === 'details' && viewingContact && (
+           <ContactDetail 
+              contact={viewingContact}
+              onBack={() => { setView('dashboard'); setViewingContact(null); }}
+              onEdit={(c) => { handleEditContact(c); }}
+              onDelete={(id) => { handleDeleteContact(id); setView('dashboard'); }}
+           />
+        )}
+
+      </main>
+    </div>
+  );
+};
+
+export default App;
