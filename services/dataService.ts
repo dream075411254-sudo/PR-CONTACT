@@ -1,7 +1,10 @@
-import { Contact, Category } from '../types';
+import { Contact, Category, User, UserRole } from '../types';
 import { DEFAULT_CATEGORIES, API_ENDPOINT } from '../constants';
 
 const CATEGORIES_KEY = 'pr_categories_data';
+const USERS_KEY = 'pr_users_data';
+
+// --- Contact Logic ---
 
 // Helper to map API response (Thai headers) to Contact interface
 const mapRowToContact = (row: any): Contact => {
@@ -51,7 +54,8 @@ const mapContactToRow = (contact: Contact) => {
 
 export const getContacts = async (): Promise<Contact[]> => {
   try {
-    const response = await fetch(API_ENDPOINT, {
+    // Add cache buster timestamp
+    const response = await fetch(`${API_ENDPOINT}?t=${Date.now()}`, {
       method: 'GET',
       redirect: 'follow',
       credentials: 'omit' 
@@ -64,10 +68,9 @@ export const getContacts = async (): Promise<Contact[]> => {
     const result = await response.json();
     
     // Check if result is array or object with data property
-    // The new script returns { status: 'success', data: [...] }
     const rows = result.data || (Array.isArray(result) ? result : []);
     
-    // Map and then reverse to show newest first, but keep the ID intact
+    // Map and then reverse to show newest first
     return rows.map((row: any) => mapRowToContact(row)).reverse(); 
   } catch (error) {
     console.error("Error loading contacts from API", error);
@@ -77,20 +80,16 @@ export const getContacts = async (): Promise<Contact[]> => {
 
 export const saveContact = async (contact: Contact): Promise<boolean> => {
   try {
-    // Check if we are updating (numeric ID from sheet) or creating (UUID)
     const isUpdate = !isNaN(Number(contact.id));
     const rowData = mapContactToRow(contact);
 
     const payload = {
       action: isUpdate ? 'update' : 'create',
       rowId: isUpdate ? contact.id : undefined,
-      ...rowData, // For create (flat structure support)
-      data: rowData // For update (nested data structure support)
+      ...rowData, 
+      data: rowData 
     };
     
-    // Support compatibility with both old/simple scripts (flat) and new scripts (nested data)
-    // The new script uses 'data' key for update, and flat keys or data key for create.
-    // We send flattened keys as well for 'create' to be safe.
     const finalPayload = isUpdate ? payload : { ...payload, ...rowData };
 
     await fetch(API_ENDPOINT, {
@@ -129,6 +128,8 @@ export const deleteContact = async (id: string): Promise<void> => {
     throw error;
   }
 };
+
+// --- Category Logic ---
 
 export const getCategories = (): Category[] => {
   try {
@@ -207,4 +208,61 @@ export const exportToCSV = (contacts: Contact[]): string => {
   ].join("\n");
 
   return csvContent;
+};
+
+// --- User Management Logic ---
+
+const DEFAULT_USERS: User[] = [
+  { id: '1', username: 'admin', password: 'admin123', name: 'System Admin', role: 'admin' },
+  { id: '2', username: 'editor', password: 'editor123', name: 'Content Editor', role: 'editor' },
+  { id: '3', username: 'viewer', password: 'viewer123', name: 'Guest Viewer', role: 'viewer' }
+];
+
+export const getUsers = (): User[] => {
+  try {
+    const data = localStorage.getItem(USERS_KEY);
+    if (!data) {
+      localStorage.setItem(USERS_KEY, JSON.stringify(DEFAULT_USERS));
+      return DEFAULT_USERS;
+    }
+    return JSON.parse(data);
+  } catch (error) {
+    return DEFAULT_USERS;
+  }
+};
+
+export const authenticateUser = (username: string, password: string): User | null => {
+  const users = getUsers();
+  const user = users.find(u => u.username === username && u.password === password);
+  return user || null;
+};
+
+export const saveUser = (user: User): void => {
+  const users = getUsers();
+  const index = users.findIndex(u => u.id === user.id);
+  
+  if (index >= 0) {
+    // Update existing
+    users[index] = user;
+  } else {
+    // Add new
+    users.push(user);
+  }
+  
+  localStorage.setItem(USERS_KEY, JSON.stringify(users));
+};
+
+export const deleteUser = (id: string): void => {
+  const users = getUsers();
+  // Prevent deleting the last admin
+  const userToDelete = users.find(u => u.id === id);
+  if (userToDelete?.role === 'admin') {
+     const adminCount = users.filter(u => u.role === 'admin').length;
+     if (adminCount <= 1) {
+         throw new Error("ไม่สามารถลบ Admin คนสุดท้ายได้");
+     }
+  }
+
+  const newUsers = users.filter(u => u.id !== id);
+  localStorage.setItem(USERS_KEY, JSON.stringify(newUsers));
 };

@@ -25,6 +25,14 @@ export interface Category {
   name: string;
 }
 
-export type ViewState = 'dashboard' | 'add' | 'categories' | 'analytics' | 'details';
+export interface User {
+  id: string;
+  username: string;
+  password?: string; // Optional for display, required for auth/creation
+  name: string;
+  role: UserRole;
+}
 
-export type UserRole = 'viewer' | 'editor';
+export type ViewState = 'dashboard' | 'add' | 'categories' | 'analytics' | 'details' | 'users';
+
+export type UserRole = 'viewer' | 'editor' | 'admin';

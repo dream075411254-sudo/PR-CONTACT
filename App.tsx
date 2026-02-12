@@ -6,7 +6,8 @@ import { CategoryManager } from './components/CategoryManager';
 import { Stats } from './components/Stats';
 import { ContactDetail } from './components/ContactDetail';
 import { Button } from './components/Button';
-import { LoginModal } from './components/LoginModal';
+import { LoginScreen } from './components/LoginScreen';
+import { UserManager } from './components/UserManager';
 import { GOOGLE_SHEET_URL } from './constants';
 import { 
   LayoutDashboard, 
@@ -28,17 +29,20 @@ import {
   Eye,
   Menu,
   X,
-  LogIn,
   LogOut,
   Shield,
-  ShieldCheck
+  ShieldCheck,
+  Lock,
+  UserCog
 } from 'lucide-react';
 
-const EDITOR_PASSWORD = "admin123"; // ในการใช้งานจริงควรเปลี่ยน หรือใช้ Environment Variable
-
 const App: React.FC = () => {
+  // Auth State
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [userRole, setUserRole] = useState<UserRole>('viewer');
+
   const [view, setView] = useState<ViewState>('dashboard');
-  const [viewMode, setViewMode] = useState<'grid' | 'table'>('table'); // Default to table
+  const [viewMode, setViewMode] = useState<'grid' | 'table'>('table'); 
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [editingContact, setEditingContact] = useState<Contact | null>(null);
@@ -47,13 +51,13 @@ const App: React.FC = () => {
   const [selectedCategoryFilter, setSelectedCategoryFilter] = useState<string>('all');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   
-  // Auth & Roles
-  const [userRole, setUserRole] = useState<UserRole>('viewer');
-  const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
-
   // Loading states
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+
+  // Permission Checks
+  const canManageContacts = userRole === 'editor' || userRole === 'admin';
+  const canManageSystem = userRole === 'admin';
 
   const fetchContacts = async () => {
     setIsLoading(true);
@@ -72,37 +76,47 @@ const App: React.FC = () => {
     }
   };
 
-  // Load initial data and check auth
+  // Check Local Storage for Auth
   useEffect(() => {
-    fetchContacts();
-    setCategories(DataService.getCategories());
-    
-    // Check local storage for session
-    const savedRole = localStorage.getItem('pr_app_role');
-    if (savedRole === 'editor') {
-      setUserRole('editor');
+    const savedRole = localStorage.getItem('pr_app_role') as UserRole | null;
+    if (savedRole) {
+      setUserRole(savedRole);
+      setIsAuthenticated(true);
     }
   }, []);
+
+  // Load data when authenticated
+  useEffect(() => {
+    if (isAuthenticated) {
+      // Ensure we load data whenever authentication is confirmed
+      fetchContacts();
+      setCategories(DataService.getCategories());
+    }
+  }, [isAuthenticated]);
 
   // Close sidebar when view changes on mobile
   useEffect(() => {
     setIsSidebarOpen(false);
   }, [view]);
 
-  const handleLogin = (password: string) => {
-    if (password === EDITOR_PASSWORD) {
-        setUserRole('editor');
-        localStorage.setItem('pr_app_role', 'editor');
-        setIsLoginModalOpen(false);
-    } else {
-        alert("รหัสผ่านไม่ถูกต้อง");
-    }
+  const handleLoginSuccess = (role: UserRole) => {
+    setUserRole(role);
+    setIsAuthenticated(true);
+    // Reset view to dashboard when logging in
+    setView('dashboard');
+    
+    // Persist login state for all roles
+    localStorage.setItem('pr_app_role', role);
   };
 
   const handleLogout = () => {
+    setIsAuthenticated(false);
     setUserRole('viewer');
     localStorage.removeItem('pr_app_role');
-    setView('dashboard'); // Redirect to safe view
+    setView('dashboard');
+    setViewingContact(null);
+    setEditingContact(null);
+    setContacts([]); // Clear contacts on logout
   };
 
   // Filter contacts
@@ -121,12 +135,10 @@ const App: React.FC = () => {
   }, [contacts, searchTerm, selectedCategoryFilter]);
 
   const handleSaveContact = async (contact: Contact) => {
-    if (userRole !== 'editor') return;
+    if (!canManageContacts) return;
     setIsSaving(true);
     try {
       await DataService.saveContact(contact);
-      
-      // Give google sheet a moment to update
       setTimeout(async () => {
           await fetchContacts();
       }, 1500);
@@ -141,13 +153,11 @@ const App: React.FC = () => {
   };
 
   const handleDeleteContact = async (id: string) => {
-    if (userRole !== 'editor') return;
+    if (!canManageContacts) return;
     if (confirm('ยืนยันการลบข้อมูลนี้? (การลบจะส่งผลต่อฐานข้อมูลโดยตรง)')) {
       setIsLoading(true);
       try {
         await DataService.deleteContact(id);
-        
-        // Give google sheet a moment to update
         setTimeout(async () => {
              await fetchContacts();
         }, 1500);
@@ -160,7 +170,7 @@ const App: React.FC = () => {
   };
 
   const handleEditContact = (contact: Contact) => {
-     if (userRole !== 'editor') return;
+     if (!canManageContacts) return;
      setEditingContact(contact);
      setView('add');
   };
@@ -171,13 +181,13 @@ const App: React.FC = () => {
   };
 
   const handleAddCategory = (name: string) => {
-    if (userRole !== 'editor') return;
+    if (!canManageSystem) return;
     DataService.addCategory(name);
     setCategories(DataService.getCategories());
   };
 
   const handleDeleteCategory = (id: string) => {
-    if (userRole !== 'editor') return;
+    if (!canManageSystem) return;
     if (confirm('ยืนยันการลบหมวดหมู่?')) {
       DataService.deleteCategory(id);
       setCategories(DataService.getCategories());
@@ -196,15 +206,15 @@ const App: React.FC = () => {
     document.body.removeChild(link);
   };
 
+  // --- RENDER LOGIN SCREEN ---
+  if (!isAuthenticated) {
+    return <LoginScreen onLogin={handleLoginSuccess} />;
+  }
+
+  // --- RENDER MAIN APP ---
   return (
     <div className="flex h-screen bg-gray-50 overflow-hidden">
       
-      <LoginModal 
-        isOpen={isLoginModalOpen} 
-        onClose={() => setIsLoginModalOpen(false)}
-        onLogin={handleLogin}
-      />
-
       {/* Mobile Sidebar Overlay */}
       {isSidebarOpen && (
         <div 
@@ -221,9 +231,11 @@ const App: React.FC = () => {
         <div className="p-6 border-b border-blue-800 flex justify-between items-center">
           <div>
             <h1 className="text-2xl font-bold tracking-tight">PR Manager</h1>
-            <div className="flex items-center gap-1 mt-1 text-blue-200 text-sm">
-                {userRole === 'editor' ? <ShieldCheck size={14} /> : <Shield size={14} />}
-                <span>{userRole === 'editor' ? 'ผู้ดูแลระบบ' : 'ผู้ใช้งานทั่วไป'}</span>
+            <div className="flex items-center gap-2 mt-2 text-blue-200 text-sm bg-blue-800/50 py-1 px-2 rounded-md w-fit">
+                {userRole === 'admin' ? <Lock size={14} className="text-red-300" /> : 
+                 userRole === 'editor' ? <ShieldCheck size={14} className="text-orange-300" /> : 
+                 <Shield size={14} className="text-green-300" />}
+                <span className="capitalize">{userRole}</span>
             </div>
           </div>
           <button 
@@ -251,8 +263,8 @@ const App: React.FC = () => {
             <span>ภาพรวมข้อมูล</span>
           </button>
 
-          {/* Editor Only Menus */}
-          {userRole === 'editor' && (
+          {/* Contact Management (Editor & Admin) */}
+          {canManageContacts && (
             <>
                 <div className="pt-4 pb-2 px-3 text-xs uppercase text-blue-300 font-semibold tracking-wider">
                     จัดการข้อมูล
@@ -264,6 +276,15 @@ const App: React.FC = () => {
                     <Plus size={20} className="mr-3" />
                     <span>เพิ่มข้อมูล</span>
                 </button>
+            </>
+          )}
+
+          {/* System Settings (Admin Only) */}
+          {canManageSystem && (
+             <>
+                <div className="pt-4 pb-2 px-3 text-xs uppercase text-blue-300 font-semibold tracking-wider">
+                    ผู้ดูแลระบบ
+                </div>
                 <button 
                     onClick={() => setView('categories')}
                     className={`w-full flex items-center p-3 rounded-lg transition-colors ${view === 'categories' ? 'bg-blue-800' : 'hover:bg-blue-700'}`}
@@ -271,30 +292,28 @@ const App: React.FC = () => {
                     <Settings size={20} className="mr-3" />
                     <span>จัดการหมวดหมู่</span>
                 </button>
-            </>
+                <button 
+                    onClick={() => setView('users')}
+                    className={`w-full flex items-center p-3 rounded-lg transition-colors ${view === 'users' ? 'bg-blue-800' : 'hover:bg-blue-700'}`}
+                >
+                    <UserCog size={20} className="mr-3" />
+                    <span>จัดการผู้ใช้งาน</span>
+                </button>
+             </>
           )}
         </nav>
         
         <div className="p-4 mt-auto border-t border-blue-800 space-y-2">
-           {userRole === 'viewer' ? (
-              <button 
-                 onClick={() => setIsLoginModalOpen(true)}
-                 className="w-full flex items-center p-2 rounded-lg text-blue-200 hover:text-white hover:bg-blue-800 transition-colors"
-              >
-                 <LogIn size={20} className="mr-3" />
-                 <span>เข้าสู่ระบบ Editor</span>
-              </button>
-           ) : (
-              <button 
-                 onClick={handleLogout}
-                 className="w-full flex items-center p-2 rounded-lg text-blue-200 hover:text-white hover:bg-blue-800 transition-colors"
-              >
-                 <LogOut size={20} className="mr-3" />
-                 <span>ออกจากระบบ</span>
-              </button>
-           )}
+           <button 
+                onClick={handleLogout}
+                className="w-full flex items-center p-2 rounded-lg text-blue-200 hover:text-white hover:bg-blue-800 transition-colors"
+            >
+                <LogOut size={20} className="mr-3" />
+                <span>ออกจากระบบ</span>
+            </button>
 
-          {userRole === 'editor' && (
+          {/* Link visible to Editor and Admin */}
+          {(canManageContacts) && (
             <a 
               href={GOOGLE_SHEET_URL} 
               target="_blank" 
@@ -353,7 +372,7 @@ const App: React.FC = () => {
                     <span className="hidden sm:inline">Export CSV</span>
                     <span className="sm:hidden">CSV</span>
                   </Button>
-                  {userRole === 'editor' && (
+                  {canManageContacts && (
                     <Button onClick={() => { setEditingContact(null); setView('add'); }}>
                         <Plus size={18} className="mr-2" />
                         เพิ่มข้อมูล
@@ -420,7 +439,7 @@ const App: React.FC = () => {
                             <button onClick={() => handleViewContact(contact)} className="p-1 text-gray-400 hover:text-blue-600 transition-colors" title="ดูรายละเอียด">
                               <Eye size={16} />
                             </button>
-                            {userRole === 'editor' && (
+                            {canManageContacts && (
                                 <>
                                     <button onClick={() => handleEditContact(contact)} className="p-1 text-gray-400 hover:text-blue-600 transition-colors" title="แก้ไข">
                                     <Edit size={16} />
@@ -549,7 +568,7 @@ const App: React.FC = () => {
                                 >
                                   <Eye size={18}/>
                                 </button>
-                                {userRole === 'editor' && (
+                                {canManageContacts && (
                                     <>
                                         <button 
                                             onClick={() => handleEditContact(contact)} 
@@ -583,7 +602,7 @@ const App: React.FC = () => {
                 </div>
               )}
 
-              {!isLoading && filteredContacts.length === 0 && userRole === 'editor' && (
+              {!isLoading && filteredContacts.length === 0 && canManageContacts && (
                  <div className="text-left">
                     <a 
                       href={GOOGLE_SHEET_URL} 
@@ -616,6 +635,10 @@ const App: React.FC = () => {
             />
           )}
 
+          {view === 'users' && (
+             <UserManager />
+          )}
+
           {view === 'analytics' && (
             <Stats contacts={contacts} />
           )}
@@ -626,7 +649,7 @@ const App: React.FC = () => {
                 onBack={() => { setView('dashboard'); setViewingContact(null); }}
                 onEdit={(c) => { handleEditContact(c); }}
                 onDelete={(id) => { handleDeleteContact(id); setView('dashboard'); }}
-                readOnly={userRole !== 'editor'}
+                readOnly={!canManageContacts}
              />
           )}
 
