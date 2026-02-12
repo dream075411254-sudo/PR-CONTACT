@@ -8,9 +8,10 @@ interface ContactDetailProps {
   onBack: () => void;
   onEdit: (contact: Contact) => void;
   onDelete: (id: string) => void;
+  readOnly?: boolean;
 }
 
-export const ContactDetail: React.FC<ContactDetailProps> = ({ contact, onBack, onEdit, onDelete }) => {
+export const ContactDetail: React.FC<ContactDetailProps> = ({ contact, onBack, onEdit, onDelete, readOnly = false }) => {
   return (
     <div className="max-w-4xl mx-auto bg-white rounded-xl shadow-md overflow-hidden animate-in fade-in slide-in-from-bottom-4 duration-500">
       {/* Header */}
@@ -37,12 +38,16 @@ export const ContactDetail: React.FC<ContactDetailProps> = ({ contact, onBack, o
             <Button variant="secondary" onClick={onBack} size="sm" className="flex-1 md:flex-none">
                 <ArrowLeft size={18} className="mr-1"/> ย้อนกลับ
             </Button>
-            <Button variant="secondary" onClick={() => onEdit(contact)} size="sm" className="flex-1 md:flex-none">
-                <Edit size={18} className="mr-1"/> แก้ไข
-            </Button>
-            <Button variant="danger" onClick={() => onDelete(contact.id)} size="sm" className="flex-1 md:flex-none">
-                <Trash2 size={18} className="mr-1"/> ลบ
-            </Button>
+            {!readOnly && (
+              <>
+                <Button variant="secondary" onClick={() => onEdit(contact)} size="sm" className="flex-1 md:flex-none">
+                    <Edit size={18} className="mr-1"/> แก้ไข
+                </Button>
+                <Button variant="danger" onClick={() => onDelete(contact.id)} size="sm" className="flex-1 md:flex-none">
+                    <Trash2 size={18} className="mr-1"/> ลบ
+                </Button>
+              </>
+            )}
         </div>
       </div>
 

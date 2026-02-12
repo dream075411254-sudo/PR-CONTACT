@@ -26,3 +26,5 @@ export interface Category {
 }
 
 export type ViewState = 'dashboard' | 'add' | 'categories' | 'analytics' | 'details';
+
+export type UserRole = 'viewer' | 'editor';
