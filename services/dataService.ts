@@ -273,7 +273,7 @@ export const exportToCSV = (contacts: Contact[], actor: User): string => {
 
 // Only Admin exists by default. Other roles must be created by Admin.
 const DEFAULT_USERS: User[] = [
-  { id: '1', username: 'admin', password: 'admin123', name: 'System Admin', role: 'admin' }
+  { id: '1', username: 'Urassayawan.je', password: 'Mira.237', name: 'System Admin', role: 'admin' }
 ];
 
 export const getUsers = (): User[] => {
