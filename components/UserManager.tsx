@@ -8,6 +8,7 @@ import { Users, UserPlus, Shield, ShieldCheck, Lock, Trash2, Edit, Save, X } fro
 export const UserManager: React.FC = () => {
   const [users, setUsers] = useState<User[]>([]);
   const [isEditing, setIsEditing] = useState(false);
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [formData, setFormData] = useState<User>({
     id: '',
     username: '',
@@ -18,6 +19,11 @@ export const UserManager: React.FC = () => {
 
   useEffect(() => {
     loadUsers();
+    // Get current user for logging purposes
+    const savedUserJson = localStorage.getItem('pr_app_user');
+    if (savedUserJson) {
+        setCurrentUser(JSON.parse(savedUserJson));
+    }
   }, []);
 
   const loadUsers = () => {
@@ -41,9 +47,10 @@ export const UserManager: React.FC = () => {
   };
 
   const handleDelete = (id: string) => {
+    if (!currentUser) return;
     if (confirm('ยืนยันการลบผู้ใช้งานนี้?')) {
       try {
-        DataService.deleteUser(id);
+        DataService.deleteUser(id, currentUser);
         loadUsers();
       } catch (e: any) {
         alert(e.message);
@@ -53,6 +60,8 @@ export const UserManager: React.FC = () => {
 
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!currentUser) return;
+
     if (!formData.username.trim() || !formData.password.trim() || !formData.name.trim()) {
         alert("กรุณากรอกข้อมูลให้ครบถ้วน");
         return;
@@ -67,7 +76,7 @@ export const UserManager: React.FC = () => {
             name: formData.name.trim()
         };
 
-        DataService.saveUser(userToSave);
+        DataService.saveUser(userToSave, currentUser);
         setIsEditing(false);
         loadUsers();
     } catch (error: any) {

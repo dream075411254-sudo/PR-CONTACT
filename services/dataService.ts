@@ -1,8 +1,45 @@
-import { Contact, Category, User, UserRole } from '../types';
+import { Contact, Category, User, UserRole, ActivityLog } from '../types';
 import { DEFAULT_CATEGORIES, API_ENDPOINT } from '../constants';
 
 const CATEGORIES_KEY = 'pr_categories_data';
 const USERS_KEY = 'pr_users_data';
+const LOGS_KEY = 'pr_activity_logs';
+
+// --- Activity Log Logic ---
+
+export const logActivity = (actor: User | null, action: string, details: string) => {
+  if (!actor) return; // Don't log if no user context (shouldn't happen in app usage)
+
+  try {
+    const logsData = localStorage.getItem(LOGS_KEY);
+    const logs: ActivityLog[] = logsData ? JSON.parse(logsData) : [];
+
+    const newLog: ActivityLog = {
+      id: crypto.randomUUID(),
+      userId: actor.id,
+      userName: actor.name,
+      userRole: actor.role,
+      action: action,
+      details: details,
+      timestamp: Date.now()
+    };
+
+    // Keep only last 500 logs to prevent localStorage overflow
+    const updatedLogs = [newLog, ...logs].slice(0, 500);
+    localStorage.setItem(LOGS_KEY, JSON.stringify(updatedLogs));
+  } catch (error) {
+    console.error("Failed to save log", error);
+  }
+};
+
+export const getActivityLogs = (): ActivityLog[] => {
+  try {
+    const data = localStorage.getItem(LOGS_KEY);
+    return data ? JSON.parse(data) : [];
+  } catch (error) {
+    return [];
+  }
+};
 
 // --- Contact Logic ---
 
@@ -78,7 +115,7 @@ export const getContacts = async (): Promise<Contact[]> => {
   }
 };
 
-export const saveContact = async (contact: Contact): Promise<boolean> => {
+export const saveContact = async (contact: Contact, actor: User): Promise<boolean> => {
   try {
     const isUpdate = !isNaN(Number(contact.id));
     const rowData = mapContactToRow(contact);
@@ -100,6 +137,8 @@ export const saveContact = async (contact: Contact): Promise<boolean> => {
       },
       body: JSON.stringify(finalPayload)
     });
+
+    logActivity(actor, isUpdate ? 'แก้ไขข้อมูลติดต่อ' : 'เพิ่มข้อมูลติดต่อ', `ชื่อ: ${contact.name}, หน่วยงาน: ${contact.organization}`);
     
     return true;
   } catch (error) {
@@ -108,7 +147,7 @@ export const saveContact = async (contact: Contact): Promise<boolean> => {
   }
 };
 
-export const deleteContact = async (id: string): Promise<void> => {
+export const deleteContact = async (id: string, contactName: string, actor: User): Promise<void> => {
   try {
     const payload = {
       action: 'delete',
@@ -123,6 +162,8 @@ export const deleteContact = async (id: string): Promise<void> => {
       },
       body: JSON.stringify(payload)
     });
+
+    logActivity(actor, 'ลบข้อมูลติดต่อ', `ลบรายชื่อ: ${contactName} (ID: ${id})`);
   } catch (error) {
     console.error("Error deleting contact", error);
     throw error;
@@ -163,21 +204,25 @@ export const syncCategoriesFromData = (contacts: Contact[]): void => {
   }
 };
 
-export const addCategory = (name: string): Category => {
+export const addCategory = (name: string, actor: User): Category => {
   const categories = getCategories();
   const newCat = { id: crypto.randomUUID(), name };
   categories.push(newCat);
   localStorage.setItem(CATEGORIES_KEY, JSON.stringify(categories));
+  
+  logActivity(actor, 'เพิ่มหมวดหมู่', `หมวดหมู่: ${name}`);
   return newCat;
 };
 
-export const deleteCategory = (id: string): void => {
+export const deleteCategory = (id: string, name: string, actor: User): void => {
   const categories = getCategories();
   const newCats = categories.filter(c => c.id !== id);
   localStorage.setItem(CATEGORIES_KEY, JSON.stringify(newCats));
+
+  logActivity(actor, 'ลบหมวดหมู่', `หมวดหมู่: ${name}`);
 };
 
-export const exportToCSV = (contacts: Contact[]): string => {
+export const exportToCSV = (contacts: Contact[], actor: User): string => {
   const headers = [
     "ชื่อ-นามสกุล", "ประเภทของข้อมูล", "ตำแหน่ง", "หน่วยงาน", "เบอร์โทรศัพท์", 
     "e-mail", "เลขที่", "ซอย", "หมู่ที่", "ถนน", 
@@ -207,6 +252,7 @@ export const exportToCSV = (contacts: Contact[]): string => {
     ...rows.map(row => row.map(cell => `"${(cell || '').replace(/"/g, '""')}"`).join(","))
   ].join("\n");
 
+  logActivity(actor, 'Export ข้อมูล', 'ดาวน์โหลดไฟล์ CSV');
   return csvContent;
 };
 
@@ -242,7 +288,7 @@ export const authenticateUser = (username: string, password: string): User | nul
   return user || null;
 };
 
-export const saveUser = (user: User): void => {
+export const saveUser = (user: User, actor: User): void => {
   const users = getUsers();
   
   // Check for duplicate username (excluding the user being edited)
@@ -256,19 +302,23 @@ export const saveUser = (user: User): void => {
   }
 
   const index = users.findIndex(u => u.id === user.id);
-  
+  let actionDetails = '';
+
   if (index >= 0) {
     // Update existing
     users[index] = user;
+    actionDetails = `แก้ไขผู้ใช้: ${user.name} (${user.role})`;
   } else {
     // Add new
     users.push(user);
+    actionDetails = `เพิ่มผู้ใช้ใหม่: ${user.name} (${user.role})`;
   }
   
   localStorage.setItem(USERS_KEY, JSON.stringify(users));
+  logActivity(actor, 'จัดการผู้ใช้งาน', actionDetails);
 };
 
-export const deleteUser = (id: string): void => {
+export const deleteUser = (id: string, actor: User): void => {
   const users = getUsers();
   // Prevent deleting the last admin
   const userToDelete = users.find(u => u.id === id);
@@ -279,6 +329,9 @@ export const deleteUser = (id: string): void => {
      }
   }
 
-  const newUsers = users.filter(u => u.id !== id);
-  localStorage.setItem(USERS_KEY, JSON.stringify(newUsers));
+  if (userToDelete) {
+      const newUsers = users.filter(u => u.id !== id);
+      localStorage.setItem(USERS_KEY, JSON.stringify(newUsers));
+      logActivity(actor, 'ลบผู้ใช้งาน', `ลบผู้ใช้: ${userToDelete.name}`);
+  }
 };

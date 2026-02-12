@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Contact, Category, ViewState, UserRole } from './types';
+import { Contact, Category, ViewState, UserRole, User } from './types';
 import * as DataService from './services/dataService';
 import { ContactForm } from './components/ContactForm';
 import { CategoryManager } from './components/CategoryManager';
@@ -8,6 +8,7 @@ import { ContactDetail } from './components/ContactDetail';
 import { Button } from './components/Button';
 import { LoginScreen } from './components/LoginScreen';
 import { UserManager } from './components/UserManager';
+import { ActivityLogViewer } from './components/ActivityLogViewer';
 import { GOOGLE_SHEET_URL } from './constants';
 import { 
   LayoutDashboard, 
@@ -33,13 +34,15 @@ import {
   Shield,
   ShieldCheck,
   Lock,
-  UserCog
+  UserCog,
+  History
 } from 'lucide-react';
 
 const App: React.FC = () => {
   // Auth State
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [userRole, setUserRole] = useState<UserRole>('viewer');
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
 
   const [view, setView] = useState<ViewState>('dashboard');
   const [viewMode, setViewMode] = useState<'grid' | 'table'>('table'); 
@@ -78,10 +81,16 @@ const App: React.FC = () => {
 
   // Check Local Storage for Auth
   useEffect(() => {
-    const savedRole = localStorage.getItem('pr_app_role') as UserRole | null;
-    if (savedRole) {
-      setUserRole(savedRole);
-      setIsAuthenticated(true);
+    const savedUserJson = localStorage.getItem('pr_app_user');
+    if (savedUserJson) {
+      try {
+        const user = JSON.parse(savedUserJson) as User;
+        setCurrentUser(user);
+        setUserRole(user.role);
+        setIsAuthenticated(true);
+      } catch (e) {
+        localStorage.removeItem('pr_app_user');
+      }
     }
   }, []);
 
@@ -99,20 +108,28 @@ const App: React.FC = () => {
     setIsSidebarOpen(false);
   }, [view]);
 
-  const handleLoginSuccess = (role: UserRole) => {
-    setUserRole(role);
+  const handleLoginSuccess = (user: User) => {
+    setCurrentUser(user);
+    setUserRole(user.role);
     setIsAuthenticated(true);
     // Reset view to dashboard when logging in
     setView('dashboard');
     
-    // Persist login state for all roles
-    localStorage.setItem('pr_app_role', role);
+    // Persist login state
+    localStorage.setItem('pr_app_user', JSON.stringify(user));
+
+    // Log login activity
+    DataService.logActivity(user, 'เข้าสู่ระบบ', 'Login สำเร็จ');
   };
 
   const handleLogout = () => {
+    if (currentUser) {
+        DataService.logActivity(currentUser, 'ออกจากระบบ', 'Logout สำเร็จ');
+    }
     setIsAuthenticated(false);
     setUserRole('viewer');
-    localStorage.removeItem('pr_app_role');
+    setCurrentUser(null);
+    localStorage.removeItem('pr_app_user');
     setView('dashboard');
     setViewingContact(null);
     setEditingContact(null);
@@ -135,10 +152,10 @@ const App: React.FC = () => {
   }, [contacts, searchTerm, selectedCategoryFilter]);
 
   const handleSaveContact = async (contact: Contact) => {
-    if (!canManageContacts) return;
+    if (!canManageContacts || !currentUser) return;
     setIsSaving(true);
     try {
-      await DataService.saveContact(contact);
+      await DataService.saveContact(contact, currentUser);
       setTimeout(async () => {
           await fetchContacts();
       }, 1500);
@@ -153,11 +170,15 @@ const App: React.FC = () => {
   };
 
   const handleDeleteContact = async (id: string) => {
-    if (!canManageContacts) return;
+    if (!canManageContacts || !currentUser) return;
+    
+    const contactToDelete = contacts.find(c => c.id === id);
+    if (!contactToDelete) return;
+
     if (confirm('ยืนยันการลบข้อมูลนี้? (การลบจะส่งผลต่อฐานข้อมูลโดยตรง)')) {
       setIsLoading(true);
       try {
-        await DataService.deleteContact(id);
+        await DataService.deleteContact(id, contactToDelete.name, currentUser);
         setTimeout(async () => {
              await fetchContacts();
         }, 1500);
@@ -181,21 +202,23 @@ const App: React.FC = () => {
   };
 
   const handleAddCategory = (name: string) => {
-    if (!canManageSystem) return;
-    DataService.addCategory(name);
+    if (!canManageSystem || !currentUser) return;
+    DataService.addCategory(name, currentUser);
     setCategories(DataService.getCategories());
   };
 
   const handleDeleteCategory = (id: string) => {
-    if (!canManageSystem) return;
-    if (confirm('ยืนยันการลบหมวดหมู่?')) {
-      DataService.deleteCategory(id);
+    if (!canManageSystem || !currentUser) return;
+    const cat = categories.find(c => c.id === id);
+    if (confirm(`ยืนยันการลบหมวดหมู่ "${cat?.name}"?`)) {
+      DataService.deleteCategory(id, cat?.name || '', currentUser);
       setCategories(DataService.getCategories());
     }
   };
 
   const handleExportCSV = () => {
-    const csvContent = DataService.exportToCSV(contacts);
+    if (!currentUser) return;
+    const csvContent = DataService.exportToCSV(contacts, currentUser);
     const blob = new Blob([new Uint8Array([0xEF, 0xBB, 0xBF]), csvContent], { type: 'text/csv;charset=utf-8;' }); 
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
@@ -235,7 +258,7 @@ const App: React.FC = () => {
                 {userRole === 'admin' ? <Lock size={14} className="text-red-300" /> : 
                  userRole === 'editor' ? <ShieldCheck size={14} className="text-orange-300" /> : 
                  <Shield size={14} className="text-green-300" />}
-                <span className="capitalize">{userRole}</span>
+                <span className="capitalize">{currentUser?.name || userRole}</span>
             </div>
           </div>
           <button 
@@ -298,6 +321,13 @@ const App: React.FC = () => {
                 >
                     <UserCog size={20} className="mr-3" />
                     <span>จัดการผู้ใช้งาน</span>
+                </button>
+                <button 
+                    onClick={() => setView('logs')}
+                    className={`w-full flex items-center p-3 rounded-lg transition-colors ${view === 'logs' ? 'bg-blue-800' : 'hover:bg-blue-700'}`}
+                >
+                    <History size={20} className="mr-3" />
+                    <span>ประวัติการใช้งาน</span>
                 </button>
              </>
           )}
@@ -635,8 +665,12 @@ const App: React.FC = () => {
             />
           )}
 
-          {view === 'users' && (
+          {view === 'users' && currentUser && (
              <UserManager />
+          )}
+
+          {view === 'logs' && (
+            <ActivityLogViewer />
           )}
 
           {view === 'analytics' && (

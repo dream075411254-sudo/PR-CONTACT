@@ -33,6 +33,16 @@ export interface User {
   role: UserRole;
 }
 
-export type ViewState = 'dashboard' | 'add' | 'categories' | 'analytics' | 'details' | 'users';
+export interface ActivityLog {
+  id: string;
+  userId: string;
+  userName: string;
+  userRole: string;
+  action: string; // e.g., 'Login', 'Create Contact', 'Delete User'
+  details: string; // Description of what happened
+  timestamp: number;
+}
+
+export type ViewState = 'dashboard' | 'add' | 'categories' | 'analytics' | 'details' | 'users' | 'logs';
 
 export type UserRole = 'viewer' | 'editor' | 'admin';

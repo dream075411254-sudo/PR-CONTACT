@@ -2,11 +2,11 @@ import React, { useState } from 'react';
 import { Button } from './Button';
 import { Input } from './Input';
 import { Users, Shield, UserCog, Lock, Info } from 'lucide-react';
-import { UserRole } from '../types';
+import { User, UserRole } from '../types';
 import * as DataService from '../services/dataService';
 
 interface LoginScreenProps {
-  onLogin: (role: UserRole) => void;
+  onLogin: (user: User) => void;
 }
 
 export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
@@ -21,14 +21,13 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
     setIsLoading(true);
 
     const cleanUsername = username.trim();
-    // const cleanPassword = password.trim(); // Optional: Usually better not to trim password in case space is intentional, but for this internal app it might prevent errors. Let's rely on DataService which doesn't trim password but matches exact.
-
+    
     // Use DataService to authenticate
     setTimeout(() => {
       const user = DataService.authenticateUser(cleanUsername, password);
       
       if (user) {
-        onLogin(user.role);
+        onLogin(user);
       } else {
         setError('ชื่อผู้ใช้งานหรือรหัสผ่านไม่ถูกต้อง');
         setIsLoading(false);
