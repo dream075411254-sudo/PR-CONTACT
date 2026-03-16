@@ -73,7 +73,7 @@ export const UserManager: React.FC = () => {
     e.preventDefault();
     if (!currentUser) return;
 
-    if (!formData.username.trim() || !formData.password.trim() || !formData.name.trim()) {
+    if (!formData.username.trim() || !(formData.password?.trim()) || !formData.name.trim()) {
         alert("กรุณากรอกข้อมูลให้ครบถ้วน");
         return;
     }
@@ -83,7 +83,7 @@ export const UserManager: React.FC = () => {
         const userToSave = {
             ...formData,
             username: formData.username.trim(),
-            password: formData.password.trim(),
+            password: formData.password?.trim() || '',
             name: formData.name.trim()
         };
 
@@ -205,7 +205,7 @@ export const UserManager: React.FC = () => {
                 <td className="px-6 py-4 whitespace-nowrap">
                   <div className="flex items-center">
                     <div className="h-8 w-8 rounded-full bg-gray-200 flex items-center justify-center text-gray-500 font-bold mr-3">
-                        {user.name.charAt(0)}
+                        {user.name?.charAt(0) || '?'}
                     </div>
                     <div className="text-sm font-medium text-gray-900">{user.name}</div>
                   </div>

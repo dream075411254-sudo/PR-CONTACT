@@ -25,9 +25,9 @@ export const ActivityLogViewer: React.FC = () => {
 
   const filteredLogs = useMemo(() => {
     return logs.filter(log => 
-      log.userName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      log.action.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      log.details.toLowerCase().includes(searchTerm.toLowerCase())
+      (log.userName || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (log.action || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (log.details || '').toLowerCase().includes(searchTerm.toLowerCase())
     );
   }, [logs, searchTerm]);
 
